@@ -1,0 +1,16 @@
+# ── XAI-SecOps Semgrep Ignore ──
+# These files are intentionally vulnerable test fixtures.
+# They exist solely to demonstrate the scanner and must NOT
+# be treated as real findings in CI / PR scans.
+
+tests/sample_vulnerable_app.py
+tests/sample_vulnerable_app_demo.py
+
+# Build / dependency artefacts
+node_modules/
+venv/
+.venv/
+__pycache__/
+dist/
+build/
+*.min.js

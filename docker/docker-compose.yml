@@ -1,0 +1,50 @@
+services:
+  # ── MongoDB (optional — only needed for local/offline development) ──
+  # When using MongoDB Atlas (cloud), you can comment this out entirely.
+  mongodb:
+    image: mongo:7
+    container_name: xai-secops-mongo
+    profiles: ["local"]  # Only starts with: docker-compose --profile local up
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: mongosh --eval "db.runCommand({ ping:1 })" --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── XAI-SecOps API ──
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: xai-secops-api
+    ports:
+      - "8000:8000"
+    env_file:
+      - ../.env
+    environment:
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - CODELLAMA_MODEL=codellama:7b
+      - APP_ENV=production
+      - LOG_LEVEL=info
+    volumes:
+      - scan_targets:/targets
+
+  # ── XAI-SecOps Dashboard ──
+  dashboard:
+    build:
+      context: ../dashboard
+      dockerfile: Dockerfile
+    container_name: xai-secops-dashboard
+    ports:
+      - "5173:80"
+    depends_on:
+      - api
+
+volumes:
+  mongo_data:
+  scan_targets:
+
