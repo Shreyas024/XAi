@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { createScan } from '../api/scans';
 
 export function NewScanDrawer({ isOpen, onClose }) {
-  const [target, setTarget] = useState('');
+  const [target, setTarget] = useState('tests/sample_vulnerable_app.py');
   const [scanning, setScanning] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState(null);
@@ -80,13 +80,15 @@ export function NewScanDrawer({ isOpen, onClose }) {
                     type="text"
                     value={target}
                     onChange={(e) => setTarget(e.target.value)}
-                    placeholder="."
+                    placeholder="tests/sample_vulnerable_app.py"
                     disabled={scanning}
                     className="w-full bg-bg/50 border border-border rounded-xl pl-10 pr-4 py-3 text-sm font-mono text-text-primary placeholder:text-text-muted/40 focus:outline-none focus:border-accent-blue focus:ring-1 focus:ring-accent-blue/50 transition-all disabled:opacity-50 group-hover:border-border/80"
                     onKeyDown={(e) => e.key === 'Enter' && handleScan()}
                   />
                 </div>
-                <p className="text-xs text-text-muted mt-2">Enter an absolute or relative path to the directory or file.</p>
+                <p className="text-xs text-text-muted mt-2">
+                  Path relative to the API folder, or an absolute path. Try <span className="font-mono text-text-primary">tests/sample_vulnerable_app.py</span>.
+                </p>
               </div>
 
               {scanning ? (

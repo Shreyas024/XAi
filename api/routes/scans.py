@@ -11,7 +11,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 from database import MongoDB
-from scanner.semgrep_runner import SemgrepRunner
+from scanner.semgrep_runner import SemgrepRunner, default_custom_rules_path
 from ai_engine.risk_scorer import RiskScorer
 from explainability.risk_factors import compute_risk_breakdown, get_risk_level
 from explainability.explanation_generator import generate_explanation, generate_summary
@@ -43,8 +43,12 @@ async def create_scan(request: ScanRequest):
     target_path = Path(request.target)
     if not target_path.exists():
         raise HTTPException(
-            status_code=400, 
-            detail=f"Target path '{request.target}' does not exist inside the Docker container. Use '.' to scan the app itself, or mount a directory to '/targets'."
+            status_code=400,
+            detail=(
+                f"Target path '{request.target}' does not exist. "
+                "Use a path relative to the API working directory "
+                "(for example tests/sample_vulnerable_app.py) or an absolute path."
+            ),
         )
 
     # Create scan record
@@ -68,10 +72,16 @@ async def create_scan(request: ScanRequest):
     try:
         # ── Step 1: Run Semgrep ──
         logger.info(f"[{scan_id}] Running Semgrep on {request.target}")
-        scanner = SemgrepRunner(
-            custom_rules_path="scanner/rules/custom_rules.yaml" if request.use_custom_rules else None
-        )
-        findings = scanner.scan(str(target_path), config=request.config)
+        rules_path = default_custom_rules_path()
+        if request.config in ("auto", "") and request.use_custom_rules:
+            scan_config = rules_path
+            extra_rules = None
+        else:
+            scan_config = request.config or "auto"
+            extra_rules = rules_path if request.use_custom_rules else None
+
+        scanner = SemgrepRunner(custom_rules_path=extra_rules)
+        findings = scanner.scan(str(target_path), config=scan_config)
 
         if not findings:
             # No findings — update scan and return

@@ -61,6 +61,9 @@ export default function ScanDetail() {
               <span>{formatRelativeTime(scan.created_at)}</span>
               <span>{scan.total_findings} findings</span>
             </div>
+            {scan.error && (
+              <p className="mt-2 text-sm text-accent-red">{scan.error}</p>
+            )}
           </div>
           <button
             onClick={() => setReportOpen(true)}

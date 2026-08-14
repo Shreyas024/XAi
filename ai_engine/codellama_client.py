@@ -32,7 +32,7 @@ class CodeLlamaClient:
             return self._available
 
         try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
+            async with httpx.AsyncClient(timeout=1.5) as client:
                 resp = await client.get(f"{self.base_url}/api/tags")
                 if resp.status_code == 200:
                     models = [m["name"] for m in resp.json().get("models", [])]
@@ -72,7 +72,9 @@ class CodeLlamaClient:
         """
         if not await self.is_available():
             logger.info("CodeLlama unavailable — using heuristic fallback")
-            return self._heuristic_analysis(code_snippet, vulnerability_type, message)
+            return self._heuristic_analysis(
+                code_snippet, vulnerability_type, message, context
+            )
 
         prompt = self._build_prompt(
             code_snippet, vulnerability_type, message, file_path, context
@@ -95,14 +97,16 @@ class CodeLlamaClient:
 
                 if resp.status_code != 200:
                     logger.error(f"Ollama returned {resp.status_code}: {resp.text[:200]}")
-                    return self._heuristic_analysis(code_snippet, vulnerability_type, message)
+                    return self._heuristic_analysis(code_snippet, vulnerability_type, message, context)
 
                 response_text = resp.json().get("response", "")
-                return self._parse_response(response_text, code_snippet, vulnerability_type, message)
+                return self._parse_response(
+                    response_text, code_snippet, vulnerability_type, message, context
+                )
 
         except Exception as e:
             logger.error(f"CodeLlama analysis failed: {e}")
-            return self._heuristic_analysis(code_snippet, vulnerability_type, message)
+            return self._heuristic_analysis(code_snippet, vulnerability_type, message, context)
 
     def _build_prompt(
         self,
@@ -158,6 +162,7 @@ Respond ONLY with the JSON object, no additional text."""
         code_snippet: str,
         vulnerability_type: str,
         message: str,
+        context: str = "",
     ) -> dict:
         """Parse CodeLlama's response into a structured dict."""
         try:
@@ -183,16 +188,22 @@ Respond ONLY with the JSON object, no additional text."""
             logger.warning(f"Failed to parse CodeLlama response: {e}")
 
         # Fall back to heuristic if parsing fails
-        return self._heuristic_analysis(code_snippet, vulnerability_type, message)
+        return self._heuristic_analysis(code_snippet, vulnerability_type, message, context)
 
     @staticmethod
-    def _heuristic_analysis(code_snippet: str, vulnerability_type: str, message: str) -> dict:
+    def _heuristic_analysis(
+        code_snippet: str,
+        vulnerability_type: str,
+        message: str,
+        context: str = "",
+    ) -> dict:
         """
         Heuristic-based fallback when CodeLlama is unavailable.
         Uses rule-based scoring based on vulnerability type and code patterns.
         """
-        code_lower = code_snippet.lower()
-        vuln_lower = vulnerability_type.lower()
+        blob = f"{code_snippet}\n{context}\n{message}\n{vulnerability_type}".lower()
+        code_lower = blob
+        vuln_lower = f"{vulnerability_type} {message}".lower()
 
         # ── Base severity by vulnerability type ──
         severity_map = {
@@ -204,16 +215,21 @@ Respond ONLY with the JSON object, no additional text."""
         }
         severity_weight = 0.5
         for keyword, score in severity_map.items():
-            if keyword in vuln_lower or keyword in message.lower():
+            if keyword in vuln_lower or keyword in code_lower:
                 severity_weight = max(severity_weight, score)
 
         # ── Exploitability: check for user input indicators ──
-        input_indicators = ["request", "input", "param", "argv", "stdin", "form", "query", "body"]
+        input_indicators = [
+            "request", "input", "param", "argv", "stdin", "form", "query",
+            "body", "username", "user_id", "hostname", "filename", "cmd",
+        ]
         exploitability = 0.3
         for indicator in input_indicators:
             if indicator in code_lower:
                 exploitability = 0.8
                 break
+        if any(k in vuln_lower for k in ("sql", "injection", "command", "rce")):
+            exploitability = max(exploitability, 0.7)
 
         # ── Data sensitivity: check for sensitive data keywords ──
         sensitive_keywords = ["password", "secret", "token", "key", "credit", "ssn", "email", "auth"]
@@ -228,7 +244,7 @@ Respond ONLY with the JSON object, no additional text."""
                                "func handler", "http.Handle", "express.", "app.get", "app.post"]
         exposure = 0.4
         for indicator in exposure_indicators:
-            if indicator in code_snippet:
+            if indicator in blob:
                 exposure = 0.85
                 break
 

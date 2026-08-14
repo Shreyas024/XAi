@@ -4,7 +4,12 @@ Tests for the Semgrep scanner module.
 
 import pytest
 from pathlib import Path
-from scanner.semgrep_runner import SemgrepRunner, SemgrepFinding
+from scanner.semgrep_runner import (
+    SemgrepRunner,
+    SemgrepFinding,
+    resolve_semgrep_binary,
+    default_custom_rules_path,
+)
 
 
 class TestSemgrepRunner:
@@ -49,19 +54,17 @@ class TestSemgrepRunner:
         assert d["cwe"] == "CWE-95"
         assert isinstance(d, dict)
 
-    @pytest.mark.skipif(
-        not Path("/usr/local/bin/semgrep").exists() and not Path("/opt/homebrew/bin/semgrep").exists(),
-        reason="Semgrep not installed"
-    )
     def test_scan_sample_vulnerable_app(self):
-        """Integration test: scan the sample vulnerable app."""
+        """Integration test: scan the sample vulnerable app with bundled rules."""
+        if resolve_semgrep_binary() == "semgrep":
+            pytest.skip("Semgrep CLI not installed")
+
         sample = Path(__file__).parent / "sample_vulnerable_app.py"
         if not sample.exists():
             pytest.skip("Sample app not found")
 
         runner = SemgrepRunner()
-        findings = runner.scan(str(sample), config="auto")
+        findings = runner.scan(str(sample), config=default_custom_rules_path())
 
-        # The sample app has intentional vulnerabilities
         assert len(findings) > 0
         assert all(isinstance(f, SemgrepFinding) for f in findings)

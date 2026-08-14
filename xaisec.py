@@ -19,7 +19,7 @@ except ImportError:
     print("Error: 'rich' library is required for the CLI. Run: pip install rich")
     sys.exit(1)
 
-from scanner.semgrep_runner import SemgrepRunner
+from scanner.semgrep_runner import SemgrepRunner, default_custom_rules_path
 from ai_engine.risk_scorer import RiskScorer
 from explainability.explanation_generator import generate_explanation
 from explainability.risk_factors import compute_risk_breakdown, get_risk_level
@@ -41,7 +41,14 @@ def risk_emoji(score: float) -> str:
     if score >= 4.0: return "🟡"
     return "🟢"
 
-async def scan_command(target_path: str, offline: bool = False):
+def _display_path(file_path: str, target: Path) -> str:
+    try:
+        return str(Path(file_path).resolve().relative_to(target if target.is_dir() else target.parent))
+    except Exception:
+        return file_path
+
+
+async def scan_command(target_path: str, offline: bool = False, use_auto: bool = False):
     target = Path(target_path).resolve()
     if not target.exists():
         console.print(f"[bold red]Error:[/] The path '{target}' does not exist.")
@@ -78,8 +85,13 @@ async def scan_command(target_path: str, offline: bool = False):
     with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True) as progress:
         # 1. Semgrep Scan
         task1 = progress.add_task("[cyan]Running Semgrep...", total=None)
-        scanner = SemgrepRunner()
-        findings = scanner.scan(str(target), config="auto")
+        rules_path = default_custom_rules_path()
+        if use_auto:
+            scanner = SemgrepRunner(custom_rules_path=rules_path)
+            findings = scanner.scan(str(target), config="auto")
+        else:
+            scanner = SemgrepRunner()
+            findings = scanner.scan(str(target), config=rules_path)
         progress.update(task1, completed=True)
 
         if not findings:
@@ -111,7 +123,7 @@ async def scan_command(target_path: str, offline: bool = False):
         level = get_risk_level(score)
         emoji = risk_emoji(score)
         color = "red" if score >= 8 else "yellow" if score >= 6 else "yellow" if score >= 4 else "green"
-        file_path = str(Path(sf["file"]).relative_to(target)) if str(target) in sf["file"] else sf["file"]
+        file_path = _display_path(sf["file"], target)
         
         table.add_row(
             f"[{color}]{score:.1f}[/]",
@@ -216,11 +228,16 @@ def main():
     scan_parser = subparsers.add_parser("scan", help="Scan a directory or file")
     scan_parser.add_argument("target", help="Path to the code to scan")
     scan_parser.add_argument("--offline", action="store_true", help="Run without connecting to MongoDB")
+    scan_parser.add_argument(
+        "--auto",
+        action="store_true",
+        help="Also run Semgrep auto rules (slower, needs network)",
+    )
     
     args = parser.parse_args()
     
     if args.command == "scan":
-        asyncio.run(scan_command(args.target, args.offline))
+        asyncio.run(scan_command(args.target, args.offline, args.auto))
     else:
         parser.print_help()
 

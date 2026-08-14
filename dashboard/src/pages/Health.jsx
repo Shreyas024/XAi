@@ -43,7 +43,12 @@ export default function Health() {
   const getStatusConfig = (status) => {
     if (!status) return { color: 'text-text-muted', bg: 'bg-surface2', border: 'border-border', dot: 'bg-text-muted', label: 'Unknown' };
     const s = status.toLowerCase();
-    if (s.includes('connected') || s.includes('available') || s.startsWith('v'))
+    if (
+      s.includes('connected') ||
+      (s.includes('available') && !s.includes('unavailable')) ||
+      s.startsWith('v') ||
+      (s.includes('installed') && !s.includes('not installed'))
+    )
       return { color: 'text-accent-green', bg: 'bg-accent-green/10', border: 'border-accent-green/30', dot: 'bg-accent-green pulse-green', label: status };
     if (s.includes('error') || s.includes('not installed') || s.includes('disconnected'))
       return { color: 'text-accent-red', bg: 'bg-accent-red/10', border: 'border-accent-red/30', dot: 'bg-accent-red', label: status };

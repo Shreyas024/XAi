@@ -87,6 +87,7 @@ class ScanSummaryResponse(BaseModel):
     avg_risk_score: float
     created_at: datetime
     completed_at: datetime | None = None
+    error: str | None = None
 
 
 class ScanDetailResponse(ScanSummaryResponse):

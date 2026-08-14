@@ -19,7 +19,7 @@ async def create_indexes(db: AsyncIOMotorDatabase) -> None:
     await db.findings.create_index([("scan_id", 1), ("risk_score", -1)])
     await db.findings.create_index("severity")
 
-    print("📇 MongoDB indexes created")
+    print("[OK] MongoDB indexes created")
 
 
 # ──────────────────────────────────────────

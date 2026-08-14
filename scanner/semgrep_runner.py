@@ -10,12 +10,38 @@ Supports:
 """
 
 import json
-import subprocess
 import logging
+import shutil
+import subprocess
+import sys
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from dataclasses import dataclass, field, asdict
 
 logger = logging.getLogger(__name__)
+
+
+def resolve_semgrep_binary() -> str:
+    """Locate the Semgrep CLI even when Scripts/ is not on PATH (common on Windows)."""
+    found = shutil.which("semgrep")
+    if found:
+        return found
+
+    candidates = [
+        Path(sys.prefix) / "Scripts" / "semgrep.exe",
+        Path(sys.prefix) / "Scripts" / "semgrep",
+        Path(sys.executable).parent / "Scripts" / "semgrep.exe",
+        Path(sys.executable).parent / "semgrep.exe",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return str(candidate)
+
+    return "semgrep"
+
+
+def default_custom_rules_path() -> str:
+    """Absolute path to bundled XAI-SecOps Semgrep rules."""
+    return str(Path(__file__).resolve().parent / "rules" / "custom_rules.yaml")
 
 
 @dataclass
@@ -65,7 +91,7 @@ class SemgrepRunner:
 
         # Build the command
         cmd = [
-            "semgrep",
+            resolve_semgrep_binary(),
             "scan",
             "--json",
             "--no-git-ignore",
@@ -85,6 +111,8 @@ class SemgrepRunner:
                 cmd,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=300,  # 5 minute timeout
             )
 
@@ -118,6 +146,10 @@ class SemgrepRunner:
             metadata = result.get("extra", {}).get("metadata", {})
             cwe_list = metadata.get("cwe", [])
             owasp_list = metadata.get("owasp", [])
+            if isinstance(cwe_list, str):
+                cwe_list = [cwe_list]
+            if isinstance(owasp_list, str):
+                owasp_list = [owasp_list]
 
             finding = SemgrepFinding(
                 rule_id=result.get("check_id", "unknown"),
@@ -155,7 +187,7 @@ class SemgrepRunner:
             if not path.exists():
                 return ""
 
-            lines = path.read_text().splitlines()
+            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
             start = max(0, line - context_lines - 1)
             end = min(len(lines), line + context_lines)
 

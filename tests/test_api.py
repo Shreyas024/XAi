@@ -22,18 +22,18 @@ def mock_mongodb():
 @pytest.mark.asyncio
 async def test_root_endpoint():
     """Root should return API info."""
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        # We need to mock the lifespan (MongoDB connection)
-        with patch("api.main.MongoDB") as mock_mongo:
-            mock_mongo.connect = AsyncMock()
-            mock_mongo.disconnect = AsyncMock()
-            mock_mongo.get_db.return_value = AsyncMock()
-
+    with patch("api.main.MongoDB") as mock_mongo, patch("api.main.create_indexes", new_callable=AsyncMock):
+        mock_mongo.connect = AsyncMock()
+        mock_mongo.disconnect = AsyncMock()
+        mock_mongo.get_db.return_value = AsyncMock()
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
             response = await client.get("/")
 
-    # Note: This will fail without MongoDB, which is expected
-    # In a real test environment, use the mock_mongodb fixture
+    assert response.status_code == 200
+    body = response.json()
+    assert body["name"] == "XAI-SecOps"
+    assert body["health"] == "/health"
 
 
 class TestScanRequestValidation:

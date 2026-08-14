@@ -4,11 +4,13 @@ Loads settings from environment variables with sensible defaults.
 """
 
 from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import Field, ConfigDict
 
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
+
+    model_config = ConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     # MongoDB
     mongodb_uri: str = Field(default="mongodb://localhost:27017", description="MongoDB connection URI")
@@ -25,10 +27,6 @@ class Settings(BaseSettings):
 
     # Risk Scoring
     risk_threshold: float = Field(default=7.0, description="Risk score threshold for CI/CD failure")
-
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
 
 
 settings = Settings()

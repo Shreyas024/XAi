@@ -1,7 +1,7 @@
 rules:
   # ─── SQL Injection ───
   - id: xai-sql-injection-format-string
-    patterns:
+    pattern-either:
       - pattern: |
           $QUERY = f"...{$INPUT}..."
           ...
@@ -52,7 +52,7 @@ rules:
 
   # ─── Command Injection ───
   - id: xai-os-system-call
-    patterns:
+    pattern-either:
       - pattern: os.system($CMD)
       - pattern: subprocess.call($CMD, shell=True, ...)
       - pattern: subprocess.run($CMD, shell=True, ...)
@@ -68,7 +68,7 @@ rules:
 
   # ─── Weak Crypto ───
   - id: xai-weak-hash-md5
-    patterns:
+    pattern-either:
       - pattern: hashlib.md5(...)
       - pattern: hashlib.sha1(...)
     message: >
