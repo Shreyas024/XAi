@@ -22,13 +22,20 @@ async def get_finding_explanation(scan_id: str, finding_id: str):
 
     db = MongoDB.get_db()
 
+    finding = None
     try:
         finding = await db.findings.find_one({
             "_id": ObjectId(finding_id),
             "scan_id": scan_id,
         })
     except Exception:
-        raise HTTPException(status_code=400, detail="Invalid finding ID")
+        pass
+
+    if not finding:
+        finding = await db.findings.find_one({
+            "_id": finding_id,
+            "scan_id": scan_id,
+        })
 
     if not finding:
         raise HTTPException(status_code=404, detail="Finding not found")
@@ -36,6 +43,16 @@ async def get_finding_explanation(scan_id: str, finding_id: str):
     # Compute factor contributions
     risk_factors = finding.get("risk_factors", {})
     contributions = compute_risk_breakdown(risk_factors)
+
+    rec = finding.get("recommendation", {})
+    if isinstance(rec, str):
+        rec = {
+            "title": "Security Issue Detected",
+            "description": "A potential security issue was flagged.",
+            "fix": rec,
+            "references": [],
+            "ai_suggestion": None,
+        }
 
     return {
         "finding_id": str(finding["_id"]),
@@ -47,7 +64,7 @@ async def get_finding_explanation(scan_id: str, finding_id: str):
         "factor_contributions": [
             FactorContributionResponse(**c.to_dict()) for c in contributions
         ],
-        "recommendation": finding.get("recommendation", {}),
+        "recommendation": rec,
         "code_snippet": finding.get("code_snippet", ""),
         "file": finding.get("file", ""),
         "line_start": finding.get("line_start", 0),

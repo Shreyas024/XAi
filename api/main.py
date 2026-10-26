@@ -30,15 +30,21 @@ async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
     # Startup
     logger.info("[START] Starting XAI-SecOps...")
-    await MongoDB.connect()
-    await create_indexes(MongoDB.get_db())
-    logger.info("[OK] XAI-SecOps is ready")
+    try:
+        await MongoDB.connect()
+        await create_indexes(MongoDB.get_db())
+        logger.info("[OK] XAI-SecOps is ready and connected to MongoDB")
+    except Exception as e:
+        logger.warning(f"[WARN] MongoDB unavailable at startup: {e}. Running in degraded/offline mode.")
 
     yield
 
     # Shutdown
     logger.info("[STOP] Shutting down XAI-SecOps...")
-    await MongoDB.disconnect()
+    try:
+        await MongoDB.disconnect()
+    except Exception:
+        pass
 
 
 # ── App ──
@@ -61,8 +67,14 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
         "http://localhost:4173",
         "http://127.0.0.1:4173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
     ],
     allow_credentials=True,
     allow_methods=["*"],

@@ -5,13 +5,15 @@ import { createScan } from '../api/scans';
 
 export function NewScanDrawer({ isOpen, onClose }) {
   const [target, setTarget] = useState('tests/sample_vulnerable_app.py');
+  const [fastMode, setFastMode] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
 
   const handleScan = async () => {
-    if (!target.trim()) return;
+    const cleanTarget = target.trim().replace(/^["']|["']$/g, '');
+    if (!cleanTarget) return;
     setScanning(true);
     setError(null);
     setElapsed(0);
@@ -19,7 +21,7 @@ export function NewScanDrawer({ isOpen, onClose }) {
     const timer = setInterval(() => setElapsed(e => e + 1), 1000);
 
     try {
-      const { data } = await createScan(target.trim());
+      const { data } = await createScan(cleanTarget, 'auto', true, fastMode);
       clearInterval(timer);
       setScanning(false);
       onClose();
@@ -89,6 +91,28 @@ export function NewScanDrawer({ isOpen, onClose }) {
                 <p className="text-xs text-text-muted mt-2">
                   Path relative to the API folder, or an absolute path. Try <span className="font-mono text-text-primary">tests/sample_vulnerable_app.py</span>.
                 </p>
+              </div>
+
+              {/* Fast Mode Toggle */}
+              <div className="flex items-center justify-between p-3.5 rounded-xl bg-surface/60 border border-border/80">
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium text-text-primary flex items-center gap-1.5">
+                    <span>⚡</span> Fast Analysis Mode
+                  </span>
+                  <span className="text-xs text-text-muted">
+                    Instant deterministic scoring (~1s). Uncheck for deep CodeLlama LLM.
+                  </span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer ml-3">
+                  <input
+                    type="checkbox"
+                    checked={fastMode}
+                    onChange={(e) => setFastMode(e.target.checked)}
+                    disabled={scanning}
+                    className="sr-only peer"
+                  />
+                  <div className="w-10 h-5 bg-surface border border-border peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-5 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-accent-blue"></div>
+                </label>
               </div>
 
               {scanning ? (

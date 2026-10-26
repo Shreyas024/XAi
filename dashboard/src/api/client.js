@@ -1,8 +1,8 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000',
-  timeout: 300000, // 5 min — scans can take a while
+  baseURL: import.meta.env.VITE_API_URL || '',
+  timeout: 600000, // 10 min — allow local CPU model inference
   headers: {
     'Content-Type': 'application/json',
   },

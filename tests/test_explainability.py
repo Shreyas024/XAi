@@ -144,3 +144,11 @@ class TestRecommendationEngine:
             ai_recommendation="Use ORM instead of raw SQL",
         )
         assert rec.get("ai_suggestion") == "Use ORM instead of raw SQL"
+
+    def test_eval_and_path_traversal_recommendations(self):
+        """Should match CWE-95 and CWE-22 recommendations."""
+        eval_rec = get_recommendation(rule_id="xai-eval-injection", cwe="CWE-95")
+        assert "Eval" in eval_rec["title"] or "Code Injection" in eval_rec["title"]
+
+        path_rec = get_recommendation(rule_id="xai-path-traversal", cwe="CWE-22")
+        assert "Path Traversal" in path_rec["title"]

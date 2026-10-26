@@ -14,6 +14,14 @@ import sys
 import json
 import asyncio
 import httpx
+
+# Ensure UTF-8 stdout/stderr on Windows
+if sys.platform == "win32":
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 from scanner.semgrep_runner import SemgrepRunner
 from ai_engine.risk_scorer import RiskScorer
 from explainability.explanation_generator import generate_explanation, generate_summary
@@ -65,7 +73,14 @@ def _format_finding_comment(finding: dict, index: int) -> str:
         factor_lines.append(f"  {c.label:<28s} [{bar}] {c.value:.1f} ({c.level})")
 
     # Get recommendation
-    rec = get_recommendation(rule, finding.get("cwe"), snippet, finding.get("recommendation"))
+    rec = finding.get("recommendation")
+    if not isinstance(rec, dict):
+        rec = get_recommendation(
+            rule,
+            finding.get("cwe"),
+            snippet,
+            ai_recommendation=str(rec) if rec else finding.get("ai_analysis"),
+        )
     rec_title = rec.get("title", "Security Issue")
     rec_fix = rec.get("fix", "Review the code.")
     rec_refs = rec.get("references", [])
@@ -265,36 +280,43 @@ async def run_pr_agent():
         )
 
     # 6. Save to MongoDB
+    # 6. Build finding docs
+    finding_docs = []
+    for sf in scored_findings:
+        risk_score = sf.get("risk_score", 0)
+        severity = sf.get("severity") or _severity_from_score(risk_score)
+        line_start = sf.get("line_start", 1)
+        line_end = sf.get("line_end", line_start)
+        rec = sf.get("recommendation")
+        if not isinstance(rec, dict):
+            rec = get_recommendation(
+                sf["rule_id"],
+                sf.get("cwe"),
+                sf["code_snippet"],
+                ai_recommendation=str(rec) if rec else sf.get("ai_analysis"),
+            )
+        finding_docs.append({
+            "scan_id": scan_id,
+            "rule_id": sf["rule_id"],
+            "severity": severity,
+            "file": sf["file"],
+            "line_start": line_start,
+            "line_end": line_end,
+            "code_snippet": sf["code_snippet"],
+            "message": sf["message"],
+            "risk_score": risk_score,
+            "risk_level": get_risk_level(risk_score),
+            "risk_factors": sf.get("risk_factors", {}),
+            "explanation": sf["explanation"],
+            "recommendation": rec,
+            "cwe": sf.get("cwe"),
+            "owasp": sf.get("owasp"),
+            "ai_analysis": sf.get("ai_analysis"),
+            "created_at": datetime.now(timezone.utc),
+        })
+
     if db is not None:
         print("Saving results to MongoDB...")
-        finding_docs = []
-        for sf in scored_findings:
-            risk_score = sf.get("risk_score", 0)
-            severity = sf.get("severity") or _severity_from_score(risk_score)
-            line_start = sf.get("line_start", 1)
-            line_end = sf.get("line_end", line_start)
-            rec = get_recommendation(sf["rule_id"], sf.get("cwe"), sf["code_snippet"], sf.get("recommendation"))
-            finding_docs.append({
-                "scan_id": scan_id,
-                "rule_id": sf["rule_id"],
-                "severity": severity,
-                "file": sf["file"],
-                "line_start": line_start,
-                "line_end": line_end,
-                "code_snippet": sf["code_snippet"],
-                "message": sf["message"],
-                "risk_score": risk_score,
-                "risk_level": get_risk_level(risk_score),
-                "risk_factors": sf.get("risk_factors", {}),
-                "explanation": sf["explanation"],
-                "recommendation": rec,
-                "cwe": sf.get("cwe"),
-                "owasp": sf.get("owasp"),
-                "ai_analysis": sf.get("ai_analysis"),
-                "created_at": datetime.now(timezone.utc),
-            })
-
-
         if finding_docs:
             await db.findings.insert_many(finding_docs)
 
@@ -315,7 +337,7 @@ async def run_pr_agent():
 
     # 6.5 Run Auto-Remediation to create fix PRs
     from auto_remediate import apply_auto_remediation
-    if db is not None and finding_docs:
+    if finding_docs:
         print("Triggering experimental Auto-Remediation...")
         try:
             apply_auto_remediation(finding_docs)

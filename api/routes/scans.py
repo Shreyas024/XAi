@@ -26,6 +26,46 @@ from api.models.schemas import (
     RecommendationResponse,
 )
 
+
+def _safe_recommendation(rec) -> RecommendationResponse:
+    """
+    Safely coerce a recommendation value to RecommendationResponse.
+    Old scan records may have stored a plain string; new ones store a dict.
+    """
+    if isinstance(rec, dict):
+        # Ensure required fields have fallbacks
+        return RecommendationResponse(
+            title=rec.get("title", "Security Issue Detected"),
+            description=rec.get("description", "A potential security issue was flagged."),
+            fix=rec.get("fix", "Review the flagged code and apply appropriate security controls."),
+            references=rec.get("references", []),
+            ai_suggestion=rec.get("ai_suggestion"),
+        )
+    # Legacy: recommendation was stored as a plain string
+    return RecommendationResponse(
+        title="Security Issue Detected",
+        description="A potential security issue was flagged.",
+        fix=str(rec) if rec else "Review the flagged code and apply appropriate security controls.",
+        references=[],
+        ai_suggestion=None,
+    )
+
+
+def _safe_risk_factors(rf) -> RiskFactorsResponse:
+    """Safely coerce risk_factors dict to RiskFactorsResponse with fallback defaults."""
+    if isinstance(rf, dict):
+        return RiskFactorsResponse(
+            severity_weight=rf.get("severity_weight", 0.5),
+            exploitability=rf.get("exploitability", 0.5),
+            data_sensitivity=rf.get("data_sensitivity", 0.5),
+            exposure=rf.get("exposure", 0.5),
+            fix_complexity=rf.get("fix_complexity", 0.5),
+        )
+    return RiskFactorsResponse(
+        severity_weight=0.5, exploitability=0.5, data_sensitivity=0.5,
+        exposure=0.5, fix_complexity=0.5,
+    )
+
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/scans", tags=["Scans"])
 
@@ -37,19 +77,25 @@ async def create_scan(request: ScanRequest):
 
     Pipeline: Semgrep scan → CodeLlama analysis → risk scoring → XAI explanation → store results.
     """
-    db = MongoDB.get_db()
-
-    # Validate target path
-    target_path = Path(request.target)
+    # Validate target path (strip surrounding quotes if copied from Windows Explorer)
+    raw_target = request.target.strip().strip('"').strip("'")
+    target_path = Path(raw_target)
     if not target_path.exists():
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Target path '{request.target}' does not exist. "
-                "Use a path relative to the API working directory "
-                "(for example tests/sample_vulnerable_app.py) or an absolute path."
-            ),
-        )
+        # Also check relative to project root
+        project_root = Path(__file__).resolve().parent.parent.parent
+        if (project_root / raw_target).exists():
+            target_path = project_root / raw_target
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Target path '{request.target}' does not exist. "
+                    "Use a valid path on this machine (e.g., C:\\path\\to\\project) "
+                    "or relative to the project root (e.g., tests/sample_vulnerable_app.py)."
+                ),
+            )
+
+    db = MongoDB.get_db()
 
     # Create scan record
     scan_id = str(uuid.uuid4())
@@ -109,8 +155,8 @@ async def create_scan(request: ScanRequest):
             )
 
         # ── Step 2: Score findings with CodeLlama ──
-        logger.info(f"[{scan_id}] Scoring {len(findings)} findings")
-        scorer = RiskScorer()
+        logger.info(f"[{scan_id}] Scoring {len(findings)} findings (fast_mode={request.fast_mode})")
+        scorer = RiskScorer(force_heuristic=request.fast_mode)
         scored_findings = await scorer.score_findings(findings)
 
         # ── Step 3: Generate explanations and recommendations ──
@@ -178,9 +224,9 @@ async def create_scan(request: ScanRequest):
                         message=doc["message"],
                         risk_score=doc["risk_score"],
                         risk_level=doc["risk_level"],
-                        risk_factors=RiskFactorsResponse(**doc["risk_factors"]),
-                        explanation=doc["explanation"],
-                        recommendation=RecommendationResponse(**doc["recommendation"]),
+                        risk_factors=_safe_risk_factors(doc.get("risk_factors")),
+                        explanation=doc.get("explanation", ""),
+                        recommendation=_safe_recommendation(doc.get("recommendation")),
                         cwe=doc.get("cwe"),
                         owasp=doc.get("owasp"),
                         ai_analysis=doc.get("ai_analysis"),
@@ -277,9 +323,9 @@ async def get_scan(scan_id: str):
                 message=doc["message"],
                 risk_score=doc["risk_score"],
                 risk_level=doc.get("risk_level", get_risk_level(doc["risk_score"])),
-                risk_factors=RiskFactorsResponse(**doc["risk_factors"]),
+                risk_factors=_safe_risk_factors(doc.get("risk_factors")),
                 explanation=doc.get("explanation", ""),
-                recommendation=RecommendationResponse(**doc["recommendation"]),
+                recommendation=_safe_recommendation(doc.get("recommendation")),
                 cwe=doc.get("cwe"),
                 owasp=doc.get("owasp"),
                 ai_analysis=doc.get("ai_analysis"),

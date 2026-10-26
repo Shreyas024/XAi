@@ -110,8 +110,20 @@ export default function ScanDetail() {
 
       {/* Findings Table */}
       <div className="bg-surface border border-border rounded-lg overflow-hidden">
-        {filteredFindings.length === 0 ? (
-          <div className="p-8 text-center text-text-muted text-sm">No findings match the filter.</div>
+        {scan.total_findings === 0 ? (
+          <div className="p-10 text-center flex flex-col items-center justify-center gap-2">
+            <div className="w-12 h-12 rounded-full bg-accent-green/10 border border-accent-green/30 flex items-center justify-center text-accent-green text-xl font-bold mb-1">
+              ✓
+            </div>
+            <h3 className="text-base font-semibold text-text-primary">No Vulnerabilities Detected</h3>
+            <p className="text-sm text-text-muted max-w-md">
+              The security scan completed successfully and found no known vulnerabilities in this codebase.
+            </p>
+          </div>
+        ) : filteredFindings.length === 0 ? (
+          <div className="p-8 text-center text-text-muted text-sm">
+            No findings match the "{activeFilter}" filter.
+          </div>
         ) : (
           <table className="w-full">
             <thead>

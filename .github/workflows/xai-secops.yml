@@ -63,7 +63,7 @@ jobs:
       - name: 🛡️ Run XAI-SecOps scan
         run: python pr_agent.py
         env:
-          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          MONGODB_URI: ${{ secrets.MONGODB_URI || 'mongodb://localhost:27017' }}
           MONGODB_DB_NAME: system_binary
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

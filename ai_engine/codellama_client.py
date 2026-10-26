@@ -11,6 +11,7 @@ when Ollama is unavailable.
 import json
 import logging
 import re
+from typing import Any
 import httpx
 
 from config import settings
@@ -20,6 +21,8 @@ logger = logging.getLogger(__name__)
 
 class CodeLlamaClient:
     """Client for interacting with CodeLlama through Ollama."""
+
+    _global_cache: dict[str, Any] = {}  # class-level LRU cache for identical snippets
 
     def __init__(self):
         self.base_url = settings.ollama_base_url
@@ -76,12 +79,17 @@ class CodeLlamaClient:
                 code_snippet, vulnerability_type, message, context
             )
 
+        # Check global cache for identical vulnerability snippet
+        cache_key = f"{vulnerability_type}:{code_snippet.strip()}"
+        if cache_key in self._global_cache:
+            return self._global_cache[cache_key]
+
         prompt = self._build_prompt(
             code_snippet, vulnerability_type, message, file_path, context
         )
 
         try:
-            async with httpx.AsyncClient(timeout=120.0) as client:
+            async with httpx.AsyncClient(timeout=12.0) as client:
                 resp = await client.post(
                     f"{self.base_url}/api/generate",
                     json={
@@ -89,23 +97,26 @@ class CodeLlamaClient:
                         "prompt": prompt,
                         "stream": False,
                         "options": {
-                            "temperature": 0.1,  # Low temp for consistent analysis
-                            "num_predict": 1024,
+                            "temperature": 0.1,
+                            "num_predict": 96,
+                            "num_ctx": 1024,
                         },
                     },
                 )
 
                 if resp.status_code != 200:
-                    logger.error(f"Ollama returned {resp.status_code}: {resp.text[:200]}")
+                    logger.warning(f"Ollama returned {resp.status_code}: {resp.text[:200]}")
                     return self._heuristic_analysis(code_snippet, vulnerability_type, message, context)
 
                 response_text = resp.json().get("response", "")
-                return self._parse_response(
+                result = self._parse_response(
                     response_text, code_snippet, vulnerability_type, message, context
                 )
+                self._global_cache[cache_key] = result
+                return result
 
         except Exception as e:
-            logger.error(f"CodeLlama analysis failed: {e}")
+            logger.info(f"CodeLlama unavailable or timed out ({e}) — using heuristic fallback")
             return self._heuristic_analysis(code_snippet, vulnerability_type, message, context)
 
     def _build_prompt(

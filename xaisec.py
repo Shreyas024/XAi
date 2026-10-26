@@ -27,7 +27,14 @@ from explainability.recommendation_engine import get_recommendation
 from database import MongoDB
 from config import settings
 
-console = Console()
+# Reconfigure stdout/stderr for UTF-8 on Windows to prevent UnicodeEncodeError with emojis
+if sys.platform == "win32":
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
+console = Console(legacy_windows=False)
 
 def severity_from_score(score: float) -> str:
     if score >= 9: return "critical"
@@ -48,11 +55,16 @@ def _display_path(file_path: str, target: Path) -> str:
         return file_path
 
 
-async def scan_command(target_path: str, offline: bool = False, use_auto: bool = False):
-    target = Path(target_path).resolve()
+async def scan_command(target_path: str, offline: bool = False, use_auto: bool = False, heuristic: bool = False):
+    clean_path = target_path.strip().strip('"').strip("'")
+    target = Path(clean_path).resolve()
     if not target.exists():
-        console.print(f"[bold red]Error:[/] The path '{target}' does not exist.")
-        sys.exit(1)
+        project_root = Path(__file__).resolve().parent
+        if (project_root / clean_path).exists():
+            target = (project_root / clean_path).resolve()
+        else:
+            console.print(f"[bold red]Error:[/] The path '{clean_path}' does not exist.")
+            sys.exit(1)
     
     scan_id = str(uuid.uuid4())
     console.print(f"\n[bold blue]🚀 XAI-SecOps CLI Scanner[/]")
@@ -105,8 +117,9 @@ async def scan_command(target_path: str, offline: bool = False, use_auto: bool =
             return
 
         # 2. Risk Scoring & AI Analysis
-        progress.add_task(f"[magenta]Scoring {len(findings)} findings with CodeLlama AI...", total=None)
-        scorer = RiskScorer()
+        desc = "[cyan]Scoring findings with instant heuristics..." if heuristic else f"[magenta]Scoring {len(findings)} findings with CodeLlama AI..."
+        progress.add_task(desc, total=None)
+        scorer = RiskScorer(force_heuristic=heuristic)
         scored_findings = await scorer.score_findings(findings)
 
     # Output Results
@@ -208,10 +221,18 @@ async def scan_command(target_path: str, offline: bool = False, use_auto: bool =
         console.print(Markdown(finding['explanation']))
         
         # Recommendation
-        rec = finding['recommendation']
-        console.print(f"\n[bold green]🔧 Recommended Fix: {rec['title']}[/]")
-        console.print(Markdown(rec['description']))
-        console.print(Panel(rec['fix'], border_style="green", title="Fix Code", title_align="left"))
+        rec = finding.get('recommendation', {})
+        if isinstance(rec, str):
+            rec = {"title": "Security Issue", "description": rec, "fix": rec}
+        elif not isinstance(rec, dict):
+            rec = {"title": "Security Issue", "description": "Review code", "fix": "Review code"}
+        title = rec.get("title", "Security Issue Detected")
+        desc = rec.get("description", "")
+        fix_code = rec.get("fix", "Review the flagged code and apply appropriate security controls.")
+        console.print(f"\n[bold green]🔧 Recommended Fix: {title}[/]")
+        if desc:
+            console.print(Markdown(desc))
+        console.print(Panel(fix_code, border_style="green", title="Fix Code", title_align="left"))
         console.print("─" * 80 + "\n")
 
     # If critical findings, exit 1
@@ -233,11 +254,20 @@ def main():
         action="store_true",
         help="Also run Semgrep auto rules (slower, needs network)",
     )
+    scan_parser.add_argument(
+        "--heuristic",
+        action="store_true",
+        help="Run fast heuristic risk scoring without local LLM latency",
+    )
     
+    # Auto-insert 'scan' command if target path is provided directly
+    if len(sys.argv) > 1 and sys.argv[1] not in ("scan", "-h", "--help"):
+        sys.argv.insert(1, "scan")
+
     args = parser.parse_args()
     
     if args.command == "scan":
-        asyncio.run(scan_command(args.target, args.offline, args.auto))
+        asyncio.run(scan_command(args.target, args.offline, args.auto, getattr(args, "heuristic", False)))
     else:
         parser.print_help()
 

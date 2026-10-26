@@ -1,10 +1,10 @@
-# 🛡️ XAI-SecOps — Explainable AI DevSecOps Security Assistant
+# XAI-SecOps — Explainable AI DevSecOps Security Assistant
 
 An AI-driven DevSecOps security assistant that integrates directly into CI/CD pipelines. It detects security threats using **Semgrep**, explains the reasoning behind detections using a **SHAP-like explainability layer**, scores risk with **CodeLlama**, and introduces an **Auto-Remediation** engine that automatically generates Pull Requests to fix high-risk vulnerabilities.
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 Code Commit → GitHub Actions → Semgrep Scanner → CodeLlama AI Engine
@@ -26,7 +26,7 @@ Code Commit → GitHub Actions → Semgrep Scanner → CodeLlama AI Engine
 
 ---
 
-## 🧰 Tech Stack
+## Tech Stack
 
 | Layer | Technology |
 |---|---|
@@ -41,7 +41,7 @@ Code Commit → GitHub Actions → Semgrep Scanner → CodeLlama AI Engine
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 System_Binary/
@@ -60,7 +60,7 @@ System_Binary/
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -93,7 +93,7 @@ cp .env.example .env
 **1. Run the Interactive CLI**
 The CLI is the easiest way to test the scanner locally.
 ```bash
-python xaisec.py scan tests/sample_vulnerable_app_demo.py
+python xaisec.py scan tests/sample_vulnerable_app.py
 ```
 
 **2. Run the FastAPI Backend**
@@ -112,7 +112,7 @@ npm run dev
 
 ---
 
-## 🤖 Auto-Remediation
+## Auto-Remediation
 
 XAI-SecOps features a built-in Auto-Remediation engine that triggers during GitHub Actions. 
 If a vulnerability receives a Risk Score of **6.0 or higher** (High/Critical), the bot will:
@@ -125,7 +125,7 @@ If a vulnerability receives a Risk Score of **6.0 or higher** (High/Critical), t
 
 ---
 
-## 📊 Risk Factors (XAI)
+## Risk Factors (XAI)
 
 Each finding gets a breakdown of 5 explainable risk factors:
 

@@ -127,6 +127,20 @@ RECOMMENDATIONS = {
             "https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html"
         ],
     },
+    # Code / Eval Injection
+    "CWE-95": {
+        "title": "Code Injection (Eval) Prevention",
+        "description": "User input is dynamically evaluated using eval() or exec().",
+        "fix": (
+            "Avoid eval() and exec() with dynamic user input.\n"
+            "Replace: result = eval(user_input)\n"
+            "With:    result = ast.literal_eval(user_input)  # For safe literal evaluation\n"
+            "Or use dedicated parsers such as simpleeval or pyparsing."
+        ),
+        "references": [
+            "https://cheatsheetseries.owasp.org/cheatsheets/Injection_Prevention_Cheat_Sheet.html"
+        ],
+    },
 }
 
 # Rule ID patterns → CWE mapping for Semgrep rules that don't include CWE
@@ -139,6 +153,7 @@ RULE_TO_CWE = {
     r"md5|sha1|weak.hash|weak.crypto": "CWE-328",
     r"path.traversal|directory.traversal": "CWE-22",
     r"ssrf|server.side.request": "CWE-918",
+    r"eval|code.injection|exec": "CWE-95",
 }
 
 

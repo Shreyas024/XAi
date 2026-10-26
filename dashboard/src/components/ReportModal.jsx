@@ -6,7 +6,7 @@ import { getScanReportSummary } from '../api/reports';
 const RISK_COLORS = {
   CRITICAL: '#DA3633',
   HIGH: '#D29922',
-  MEDIUM: '#D29922',
+  MEDIUM: '#E3A008',
   LOW: '#238636',
   INFO: '#8B949E',
 };
@@ -31,7 +31,7 @@ export function ReportModal({ isOpen, onClose, scanId }) {
     : [];
 
   const barData = data?.top_risk_factors?.map(f => ({
-    name: f.factor.replace('_', ' ').replace(/^\w/, c => c.toUpperCase()),
+    name: f.factor.replaceAll('_', ' ').replace(/^\w/, c => c.toUpperCase()),
     avg: Math.round(f.average_value * 100),
     max: Math.round(f.max_value * 100),
   })) || [];

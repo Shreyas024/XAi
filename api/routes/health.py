@@ -20,10 +20,14 @@ _CACHE_TTL = 15.0
 
 
 def _probe_semgrep() -> str:
+    from scanner.semgrep_runner import is_semgrep_available
+    if is_semgrep_available():
+        return "installed"
     binary = resolve_semgrep_binary()
+    if binary == "native-engine":
+        return "installed (native engine)"
     if binary == "semgrep" and not shutil.which("semgrep"):
         return "not installed"
-    # Binary is present — avoid a slow `--version` on every poll.
     return "installed"
 
 

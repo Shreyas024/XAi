@@ -3,7 +3,11 @@ import { formatDistanceToNow } from 'date-fns';
 export const formatRelativeTime = (dateString) => {
   if (!dateString) return '—';
   try {
-    return formatDistanceToNow(new Date(dateString), { addSuffix: true });
+    let str = String(dateString).trim();
+    if (str && !str.endsWith('Z') && !str.includes('+') && !str.includes('-', 10)) {
+      str += 'Z';
+    }
+    return formatDistanceToNow(new Date(str), { addSuffix: true });
   } catch {
     return '—';
   }

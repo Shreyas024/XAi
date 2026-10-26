@@ -37,3 +37,7 @@ docker/data/
 # Logs
 *.log
 logs/
+
+# Local files
+files/
+

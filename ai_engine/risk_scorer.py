@@ -16,8 +16,9 @@ logger = logging.getLogger(__name__)
 class RiskScorer:
     """Orchestrates vulnerability analysis: Semgrep → CodeLlama → risk score."""
 
-    def __init__(self):
+    def __init__(self, force_heuristic: bool = False):
         self.codellama = CodeLlamaClient()
+        self.force_heuristic = force_heuristic
 
     async def score_finding(self, finding: SemgrepFinding) -> dict:
         """
@@ -38,13 +39,21 @@ class RiskScorer:
         vuln_type = finding.cwe or finding.rule_id
 
         # Send to CodeLlama (or fallback to heuristic)
-        result = await self.codellama.analyze_vulnerability(
-            code_snippet=finding.code_snippet,
-            vulnerability_type=vuln_type,
-            message=finding.message,
-            file_path=finding.file,
-            context=context,
-        )
+        if self.force_heuristic:
+            result = self.codellama._heuristic_analysis(
+                code_snippet=finding.code_snippet,
+                vulnerability_type=vuln_type,
+                message=finding.message,
+                context=context,
+            )
+        else:
+            result = await self.codellama.analyze_vulnerability(
+                code_snippet=finding.code_snippet,
+                vulnerability_type=vuln_type,
+                message=finding.message,
+                file_path=finding.file,
+                context=context,
+            )
 
         return {
             "risk_score": result["risk_score"],

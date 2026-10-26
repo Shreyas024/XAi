@@ -1,7 +1,15 @@
 import os
+import sys
 import subprocess
 import logging
 from datetime import datetime
+
+# Ensure UTF-8 stdout/stderr on Windows
+if sys.platform == "win32":
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 logger = logging.getLogger(__name__)
 
@@ -82,13 +90,16 @@ def apply_auto_remediation(findings: list[dict]):
         for finding in actionable_findings:
             pr_body += f"- **{finding['rule_id']}** in `{finding['file']}:{finding['line_start']}`\n"
             
+        extra_env = {}
+        if os.environ.get("GITHUB_TOKEN"):
+            extra_env["GH_TOKEN"] = os.environ["GITHUB_TOKEN"]
         subprocess.run([
             "gh", "pr", "create",
             "--title", pr_title,
             "--body", pr_body,
             "--head", branch_name,
             "--base", "main"
-        ], check=True, env={**os.environ, "GH_TOKEN": os.environ.get("GITHUB_TOKEN")})
+        ], check=True, env={**os.environ, **extra_env})
         
         logger.info(f"Successfully created Auto-Remediation PR from branch {branch_name}")
 

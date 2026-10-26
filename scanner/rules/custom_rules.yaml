@@ -24,9 +24,9 @@ rules:
   - id: xai-hardcoded-secret
     patterns:
       - pattern: $VAR = "..."
-    metavariable-regex:
-      metavariable: $VAR
-      regex: (password|secret|api_key|token|private_key)
+      - metavariable-regex:
+          metavariable: $VAR
+          regex: (?i)(password|secret|api_key|token|private_key)
     message: >
       Hardcoded secret detected. Store secrets in environment variables
       or a secrets manager, never in source code.
@@ -78,4 +78,35 @@ rules:
     languages: [python]
     metadata:
       cwe: ["CWE-328: Use of Weak Hash"]
+      owasp: ["A02:2021 - Cryptographic Failures"]
       confidence: MEDIUM
+
+  # ─── Path Traversal ───
+  - id: xai-path-traversal
+    pattern-either:
+      - pattern: open(f"...{$INPUT}...", ...)
+      - pattern: open("..." + $INPUT, ...)
+    message: >
+      Potential path traversal vulnerability. File path is constructed with
+      unsanitized input. Validate and sanitize paths with os.path.realpath.
+    severity: ERROR
+    languages: [python]
+    metadata:
+      cwe: ["CWE-22: Path Traversal"]
+      owasp: ["A01:2021 - Broken Access Control"]
+      confidence: MEDIUM
+
+  # ─── Eval Injection ───
+  - id: xai-eval-injection
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: exec(...)
+    message: >
+      Dangerous use of eval() or exec() with user input allows arbitrary code
+      execution. Use safer alternatives like ast.literal_eval().
+    severity: ERROR
+    languages: [python]
+    metadata:
+      cwe: ["CWE-95: Improper Neutralization of Directives in Dynamically Evaluated Code ('Eval Injection')"]
+      owasp: ["A03:2021 - Injection"]
+      confidence: HIGH

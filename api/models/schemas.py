@@ -17,6 +17,7 @@ class ScanRequest(BaseModel):
     target: str = Field(..., description="Path to directory or file to scan")
     config: str = Field(default="auto", description="Semgrep config: 'auto' or path to rules")
     use_custom_rules: bool = Field(default=True, description="Include custom XAI-SecOps rules")
+    fast_mode: bool = Field(default=False, description="Use instant deterministic heuristic scoring")
 
 
 # ──────────────────────────────────────────
